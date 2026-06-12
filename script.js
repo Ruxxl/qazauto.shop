@@ -3,6 +3,7 @@ let db = {
   settings: {
     tgBotToken: '',
     tgChatId: '',
+    imgbbApiKey: '998292eee92f28de11c6041b4b8546db',
     adminPassword: 'admin123',
     storeName: 'QazAuto.Shop'
   },
@@ -30,7 +31,18 @@ let editingProductId = null;
 function save(){localStorage.setItem('qazauto_db',JSON.stringify(db));}
 function loadDB(){
   const s=localStorage.getItem('qazauto_db');
-  if(s){try{const d=JSON.parse(s);Object.assign(db,d);}catch(e){}}
+  if(s){
+    try {
+      const d = JSON.parse(s);
+      if (d.settings) {
+        // Если в localStorage значение пустое, а в коде есть дефолтное — оставляем дефолтное
+        for (let key in db.settings) {
+          if (!d.settings[key] && db.settings[key]) d.settings[key] = db.settings[key];
+        }
+      }
+      Object.assign(db, d);
+    } catch(e) {}
+  }
 }
 loadDB();
 
@@ -410,15 +422,19 @@ function openProductModal(id){
   const cats=db.categories.filter(c=>c!=='Все');
   document.getElementById('modal-content').innerHTML=`
     <div class="form-group">
-      <label>Фото товара</label>
-      <div class="img-upload-area">
-        <img class="img-preview" src="${p.image||''}" id="img-preview-show" style="${p.image?'':'display:none'}">
-        <div id="img-upload-placeholder" style="${p.image?'display:none':''}">
-          <div style="font-size:24px;margin-bottom:8px">📸</div>
-          <div style="font-size:13px;color:var(--gray)">Нажмите, чтобы загрузить фото</div>
+      <label>Фото товара (загрузка в облако)</label>
+      <div style="display:flex; gap:10px; align-items:start; margin-bottom:10px;">
+        <div class="prod-thumb" style="width:80px; height:80px; border:1.5px solid var(--border); border-radius:8px; overflow:hidden; background:var(--gray-bg); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+          <img src="${p.image||''}" id="img-preview-show" style="${p.image?'':'display:none'}; width:100%; height:100%; object-fit:cover;">
+          <span id="img-preview-placeholder" style="${p.image?'display:none':''}">🖼️</span>
         </div>
-        <input type="file" id="prod-file" accept="image/*" onchange="handleFileUpload(this)">
+        <div style="flex:1;">
+          <input type="file" id="prod-file" accept="image/*" style="display:none" onchange="uploadToCloud(this)">
+          <button class="btn-secondary" onclick="document.getElementById('prod-file').click()" id="btn-upload-label" style="width:100%; margin-bottom:8px;">📁 Выбрать файл</button>
+          <input type="text" id="prod-image" value="${p.image||''}" placeholder="Или вставьте прямую ссылку" oninput="previewImg(this.value)" style="padding:8px; font-size:12px;">
+        </div>
       </div>
+      <div class="settings-note" id="upload-status">Фото будет загружено в облако и доступно всем.</div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Название *</label><input type="text" id="prod-name" value="${p.name}" placeholder="Название товара"></div>
@@ -434,18 +450,59 @@ function openProductModal(id){
   openModal('product-modal');
 }
 
-function handleFileUpload(input){
+async function uploadToCloud(input) {
   const file = input.files[0];
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e){
-    const img = document.getElementById('img-preview-show');
-    const ph = document.getElementById('img-upload-placeholder');
-    img.src = e.target.result;
-    img.style.display = 'block';
-    if(ph) ph.style.display = 'none';
-  };
-  reader.readAsDataURL(file);
+  
+  const apiKey = db.settings.imgbbApiKey;
+  if (!apiKey) {
+    showToast('Сначала добавьте ImgBB API Key в настройках!', 'error');
+    return;
+  }
+
+  const status = document.getElementById('upload-status');
+  const btn = document.getElementById('btn-upload-label');
+  const originalText = btn.textContent;
+  
+  status.textContent = '⏳ Загрузка в облако...';
+  btn.disabled = true;
+  btn.textContent = '⌛ Загрузка...';
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await response.json();
+    
+    if (data.success) {
+      const url = data.data.url;
+      document.getElementById('prod-image').value = url;
+      previewImg(url);
+      status.textContent = '✅ Загружено успешно!';
+      showToast('Фото загружено в облако', 'success');
+    } else {
+      throw new Error(data.error.message);
+    }
+  } catch (err) {
+    showToast('Ошибка загрузки: ' + err.message, 'error');
+    status.textContent = '❌ Ошибка загрузки';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+function previewImg(url){
+  const img = document.getElementById('img-preview-show');
+  const ph = document.getElementById('img-preview-placeholder');
+  if(!img || !ph) return;
+  img.src = url;
+  img.style.display = url ? 'block' : 'none';
+  ph.style.display = url ? 'none' : 'block';
 }
 
 function saveProduct(){
@@ -458,7 +515,7 @@ function saveProduct(){
     desc:document.getElementById('prod-desc').value.trim(),
     category:document.getElementById('prod-cat').value,
     emoji:document.getElementById('prod-emoji').value.trim(),
-    image:document.getElementById('img-preview-show').style.display !== 'none' ? document.getElementById('img-preview-show').src : '',
+    image:document.getElementById('prod-image').value.trim(),
     badge:document.getElementById('prod-badge').value.trim()
   };
   if(editingProductId){
@@ -530,6 +587,12 @@ function renderSettings(){
       <input type="text" id="tg-chat" value="${db.settings.tgChatId}" placeholder="-100123456789 или @username">
       <div class="settings-note">ID вашего чата/канала куда приходят заказы. Узнать: @userinfobot</div>
     </div>
+    <h3>🖼️ Облако для фото (ImgBB)</h3>
+    <div class="form-group">
+      <label>ImgBB API Key</label>
+      <input type="text" id="imgbb-key" value="${db.settings.imgbbApiKey}" placeholder="Ваш API ключ">
+      <div class="settings-note">Получите бесплатно на <a href="https://api.imgbb.com/" target="_blank">api.imgbb.com</a> для бесконечной загрузки фото.</div>
+    </div>
     <button class="btn-primary" onclick="saveTgSettings()">💾 Сохранить Telegram</button>
   </div>`;
 }
@@ -537,7 +600,8 @@ function renderSettings(){
 function saveTgSettings(){
   db.settings.tgBotToken=document.getElementById('tg-token').value.trim();
   db.settings.tgChatId=document.getElementById('tg-chat').value.trim();
-  save();showToast('Telegram настройки сохранены','success');
+  db.settings.imgbbApiKey=document.getElementById('imgbb-key').value.trim();
+  save();showToast('Настройки сохранены','success');
 }
 
 // ====================== MODALS ======================
