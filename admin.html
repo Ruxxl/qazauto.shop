@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Админ-панель — QazAuto.Shop</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="admin-body">
+
+<!-- =================== ADMIN LOGIN =================== -->
+<div id="admin-login-page" class="page active">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="logo-icon" style="width:60px;height:60px;font-size:16px;margin:0 auto 8px;background:var(--yellow);border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;color:var(--black);">QAZ</div>
+      </div>
+      <h2>Вход в админку</h2>
+      <p>QazAuto.Shop — панель управления</p>
+      <div class="form-group"><label>Логин</label><input type="text" id="login-user" value="admin"></div>
+      <div class="form-group"><label>Пароль</label><input type="password" id="login-pass" value="admin123" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button class="btn-submit" onclick="doLogin()">Войти</button>
+    </div>
+  </div>
+</div>
+
+<!-- =================== ADMIN PANEL =================== -->
+<div id="admin-page" class="page">
+  <div class="admin-layout">
+    <div class="admin-sidebar">
+      <div class="admin-logo">
+        <div class="admin-logo-icon">QAZ</div>
+        Админ-панель
+      </div>
+      <nav class="admin-nav">
+        <a onclick="adminTab('dashboard')" id="nav-dashboard" class="active"><span class="nav-icon">📊</span> Дашборд</a>
+        <a onclick="adminTab('orders')" id="nav-orders"><span class="nav-icon">📋</span> Заказы</a>
+        <a onclick="adminTab('products')" id="nav-products"><span class="nav-icon">📦</span> Товары</a>
+        <a onclick="adminTab('categories')" id="nav-categories"><span class="nav-icon">🏷️</span> Категории</a>
+        <a onclick="adminTab('settings')" id="nav-settings"><span class="nav-icon">⚙️</span> Настройки</a>
+        <a onclick="goShop()" style="margin-top:auto;"><span class="nav-icon">🏪</span> В магазин</a>
+        <a onclick="logout()"><span class="nav-icon">🚪</span> Выйти</a>
+      </nav>
+    </div>
+    <div class="admin-main" id="admin-main"></div>
+  </div>
+</div>
+
+<!-- =================== PRODUCT MODAL =================== -->
+<div class="modal-overlay" id="product-modal">
+  <div class="modal">
+    <h3 id="modal-title"></h3>
+    <div id="modal-content"></div>
+    <div class="modal-foot">
+      <button class="btn-secondary" onclick="closeModal('product-modal')">Отмена</button>
+      <button class="btn-primary" id="modal-save-btn">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- ORDER DETAIL MODAL -->
+<div class="modal-overlay" id="order-modal">
+  <div class="modal">
+    <h3>Детали заказа</h3>
+    <div id="order-modal-content"></div>
+    <div class="modal-foot">
+      <button class="btn-secondary" onclick="closeModal('order-modal')">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="script.js"></script>
+</body>
+</html>
