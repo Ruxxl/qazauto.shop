@@ -54,6 +54,8 @@ function goShop(){
     showPage('shop-page');
     renderCategories();
     renderProducts();
+    // Прокручиваем вверх при возврате
+    window.scrollTo(0,0);
   }
 }
 
@@ -106,7 +108,7 @@ function renderProducts(){
   empty.style.display='none';
   if(title) title.style.display = 'block';
   g.innerHTML=prods.map(p=>`
-    <div class="product-card" onclick="addToCart(${p.id},event)">
+    <div class="product-card" onclick="showProductDetails(${p.id})">
       <div class="product-img">
         ${p.image?`<img src="${p.image}" alt="${p.name}">`:`<span>${p.emoji||'📦'}</span>`}
         ${p.badge?`<div class="product-badge">${p.badge}</div>`:''}
@@ -120,6 +122,48 @@ function renderProducts(){
         </div>
       </div>
     </div>`).join('');
+}
+
+function showProductDetails(id) {
+  const p = db.products.find(x => x.id === id);
+  if (!p) return;
+
+  const detailPage = document.getElementById('product-detail-page');
+  if (!detailPage) return;
+
+  detailPage.innerHTML = `
+    <header>
+      <div class="header-inner">
+        <a class="logo" onclick="goShop()">
+          <div class="logo-icon">QAZ<br>AUTO</div>
+          <div class="logo-text">QazAuto.Shop</div>
+        </a>
+      </div>
+    </header>
+    <div class="section">
+      <button class="btn-back" onclick="goShop()">← Назад</button>
+      <div class="product-detail-grid">
+        <div class="product-detail-img">
+          ${p.image ? `<img src="${p.image}" alt="${p.name}">` : `<span>${p.emoji || '📦'}</span>`}
+        </div>
+        <div class="product-detail-info">
+          <h1>${p.name}</h1>
+          <div class="product-detail-price">${fmtPrice(p.price)}</div>
+          <p class="product-detail-desc">${p.fullDesc || p.desc}</p>
+          
+          <div class="stock-info">
+            <h3>Наличие в магазинах:</h3>
+            <div class="stock-item ${p.stockRakhmet > 0 ? 'in-stock' : 'out-of-stock'}">ТЦ Рахмет, бутик 6 <span>${p.stockRakhmet > 0 ? 'В наличии' : 'Нет в наличии'}</span></div>
+            <div class="stock-item ${p.stockUlyTau > 0 ? 'in-stock' : 'out-of-stock'}">Асфендиярова 4, Uly Tau <span>${p.stockUlyTau > 0 ? 'В наличии' : 'Нет в наличии'}</span></div>
+          </div>
+          
+          <button class="btn-submit" onclick="addToCart(${p.id}); goShop(); openCart();" style="margin-top:20px">🛒 Добавить в корзину</button>
+        </div>
+      </div>
+    </div>`;
+  
+  showPage('product-detail-page');
+  window.scrollTo(0,0);
 }
 
 function fmtPrice(n){return n.toLocaleString('ru-RU')+' ₸';}
@@ -417,7 +461,7 @@ function renderProductsAdmin(){
 
 function openProductModal(id){
   editingProductId=id||null;
-  const p=id?db.products.find(x=>x.id===id):{id:null,name:'',desc:'',price:'',category:'',emoji:'',image:'',badge:''};
+  const p=id?db.products.find(x=>x.id===id):{id:null,name:'',desc:'',fullDesc:'',price:'',category:'',emoji:'',image:'',badge:'',stockRakhmet:0,stockUlyTau:0};
   document.getElementById('modal-title').textContent=id?'Редактировать товар':'Новый товар';
   const cats=db.categories.filter(c=>c!=='Все');
   document.getElementById('modal-content').innerHTML=`
@@ -440,7 +484,12 @@ function openProductModal(id){
       <div class="form-group"><label>Название *</label><input type="text" id="prod-name" value="${p.name}" placeholder="Название товара"></div>
       <div class="form-group"><label>Цена (₸) *</label><input type="number" id="prod-price" value="${p.price}" placeholder="1500"></div>
     </div>
-    <div class="form-group"><label>Описание</label><textarea id="prod-desc" style="min-height:60px">${p.desc}</textarea></div>
+    <div class="form-group"><label>Краткое описание (для карточки)</label><input type="text" id="prod-desc" value="${p.desc}"></div>
+    <div class="form-group"><label>Полное описание (для страницы товара)</label><textarea id="prod-full-desc" style="min-height:100px">${p.fullDesc || ''}</textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label>Наличие: Рахмет</label><input type="number" id="prod-stock-rakhmet" value="${p.stockRakhmet || 0}"></div>
+      <div class="form-group"><label>Наличие: Uly Tau</label><input type="number" id="prod-stock-uly" value="${p.stockUlyTau || 0}"></div>
+    </div>
     <div class="form-row">
       <div class="form-group"><label>Категория</label><select id="prod-cat">${cats.map(c=>`<option ${c===p.category?'selected':''}>${c}</option>`).join('')}</select></div>
       <div class="form-group"><label>Эмодзи (если нет фото)</label><input type="text" id="prod-emoji" value="${p.emoji||''}" placeholder="🚗"></div>
@@ -513,10 +562,13 @@ function saveProduct(){
   const data={
     name,price,
     desc:document.getElementById('prod-desc').value.trim(),
+    fullDesc:document.getElementById('prod-full-desc').value.trim(),
     category:document.getElementById('prod-cat').value,
     emoji:document.getElementById('prod-emoji').value.trim(),
     image:document.getElementById('prod-image').value.trim(),
-    badge:document.getElementById('prod-badge').value.trim()
+    badge:document.getElementById('prod-badge').value.trim(),
+    stockRakhmet: parseInt(document.getElementById('prod-stock-rakhmet').value) || 0,
+    stockUlyTau: parseInt(document.getElementById('prod-stock-uly').value) || 0
   };
   if(editingProductId){
     const i=db.products.findIndex(p=>p.id===editingProductId);
@@ -593,7 +645,24 @@ function renderSettings(){
       <input type="text" id="imgbb-key" value="${db.settings.imgbbApiKey}" placeholder="Ваш API ключ">
       <div class="settings-note">Получите бесплатно на <a href="https://api.imgbb.com/" target="_blank">api.imgbb.com</a> для бесконечной загрузки фото.</div>
     </div>
-    <button class="btn-primary" onclick="saveTgSettings()">💾 Сохранить Telegram</button>
+    <button class="btn-primary" onclick="saveTgSettings()">💾 Сохранить настройки</button>
+  </div>
+  
+  <div class="settings-card">
+    <h3>💾 Сохранение данных навсегда</h3>
+    <p class="settings-note" style="margin-bottom:15px;">
+      Сейчас все товары хранятся в браузере. Чтобы они не исчезли при очистке истории, 
+      нажмите кнопку ниже, скопируйте текст и замените им переменную <b>let db = {...}</b> в начале файла <b>script.js</b>.
+    </p>
+    <div style="display:flex; gap:10px;">
+      <button class="btn-secondary" onclick="copyDatabaseText()">📋 Копировать JSON для кода</button>
+      <button class="btn-secondary" onclick="downloadDatabase()">📥 Скачать как файл</button>
+    </div>
+  </div>
+  
+  <div class="settings-card" style="border-top: 1px solid var(--red);">
+    <h3 style="color:var(--red);">⚠️ Опасная зона</h3>
+    <button class="btn-danger" onclick="resetDatabase()">🔥 Полный сброс (удалить всё)</button>
   </div>`;
 }
 
@@ -602,6 +671,29 @@ function saveTgSettings(){
   db.settings.tgChatId=document.getElementById('tg-chat').value.trim();
   db.settings.imgbbApiKey=document.getElementById('imgbb-key').value.trim();
   save();showToast('Настройки сохранены','success');
+}
+
+function copyDatabaseText() {
+  const text = JSON.stringify(db, null, 2);
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Данные скопированы! Теперь вставьте их в script.js', 'success');
+  });
+}
+
+function downloadDatabase() {
+  const data = JSON.stringify(db, null, 2);
+  const blob = new Blob([data], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'db.json';
+  a.click();
+}
+
+function resetDatabase() {
+  if(!confirm('Вы уверены? Все товары и заказы будут удалены безвозвратно!')) return;
+  localStorage.removeItem('qazauto_db');
+  location.reload();
 }
 
 // ====================== MODALS ======================
